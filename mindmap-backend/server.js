@@ -8,6 +8,7 @@ const morgan = require("morgan");
 
 const connectDB = require("./src/config/db");
 const { initSocket } = require("./src/config/socket");
+const { errorHandler } = require("./src/middleware/error.middleware");
 
 // ── Initialize Express ──────────────────────────────────────
 const app = express();
@@ -27,10 +28,13 @@ app.get("/api/health", (req, res) => {
   res.json({ success: true, message: "MindMap API is running 🚀" });
 });
 
-// ── Routes (added as features are built) ────────────────────
-// app.use("/api/auth", require("./src/routes/auth.routes"));
+// ── Routes ──────────────────────────────────────────────────
+app.use("/api/auth", require("./src/routes/auth.routes"));
 // app.use("/api/mood", require("./src/routes/mood.routes"));
 // app.use("/api/user", require("./src/routes/user.routes"));
+
+// ── Global Error Handler (must be last) ─────────────────────
+app.use(errorHandler);
 
 // ── Create HTTP Server + Attach Socket.io ───────────────────
 const httpServer = createServer(app);   // Wrap Express — never use app.listen()

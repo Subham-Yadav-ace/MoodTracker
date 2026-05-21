@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
 
+
+///for the logout fxn only so you must be logged in to log out 
 const protect = async (req, res, next) => {
   const token = req.cookies.accessToken;
 

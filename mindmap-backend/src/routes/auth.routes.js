@@ -46,7 +46,7 @@ router.post("/register", ...registerValidation, register);
 router.post("/login", ...loginValidation, login);
 
 // POST /api/auth/refresh
-router.post("/refresh", refresh);
+router.post("/refresh", refresh);//-->used for the retreiving the new access token 
 
 // POST /api/auth/logout  (protected — must be logged in to log out)
 router.post("/logout", protect, logout);

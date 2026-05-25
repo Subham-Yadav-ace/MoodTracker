@@ -163,6 +163,7 @@ const getMoodInsights = async (req, res, next) => {
       {
         $facet: {
           // Average mood score
+          
           averageScore: [
             { $group: { _id: null, avg: { $avg: "$score" }, count: { $sum: 1 } } },
           ],

@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 const HF_MODEL_URL =
-  "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base";
+  "https://router.huggingface.co/hf-inference/models/j-hartmann/emotion-english-distilroberta-base";
 
 // ── Emotion → Sentiment label mapping ────────────────────────
 const EMOTION_TO_LABEL = {

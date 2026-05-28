@@ -1,18 +1,12 @@
 const axios = require("axios");
 
+const {
+  EMOTION_TO_SENTIMENT, // { joy: "POSITIVE", sadness: "NEGATIVE", ... }
+  SENTIMENT_LABELS,     // { POSITIVE, NEGATIVE, NEUTRAL }
+} = require("../utils/constants");
+
 const HF_MODEL_URL =
   "https://router.huggingface.co/hf-inference/models/j-hartmann/emotion-english-distilroberta-base";
-
-// ── Emotion → Sentiment label mapping ────────────────────────
-const EMOTION_TO_LABEL = {
-  joy:      "POSITIVE",
-  surprise: "POSITIVE",
-  anger:    "NEGATIVE",
-  disgust:  "NEGATIVE",
-  fear:     "NEGATIVE",
-  sadness:  "NEGATIVE",
-  neutral:  "NEUTRAL",
-};
 
 // ── Retry helper (cold-start: model loading returns 503) ─────
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -61,7 +55,7 @@ const analyzeSentiment = async (text, retryCount = 0) => {
     const top = sorted[0]; // e.g. { label: "joy", score: 0.9772 }
 
     return {
-      label:         EMOTION_TO_LABEL[top.label] || "NEUTRAL",
+      label:         EMOTION_TO_SENTIMENT[top.label] || SENTIMENT_LABELS.NEUTRAL,
       confidence:    parseFloat(top.score.toFixed(4)),
       emotion:       top.label,
       compoundScore: null,

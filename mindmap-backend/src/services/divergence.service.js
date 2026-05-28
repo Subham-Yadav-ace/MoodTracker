@@ -1,3 +1,9 @@
+const {
+  DIVERGENCE_SCORE_THRESHOLD, // 6  → score ≥ 6 = user is reporting HIGH mood
+  CRISIS_LOW_SCORE_THRESHOLD, // 3  → score ≤ 3 = user is reporting LOW mood
+  SENTIMENT_LABELS,           // { POSITIVE, NEGATIVE, NEUTRAL }
+} = require("../utils/constants");
+
 // ────────────────────────────────────────────────────────────
 // checkDivergence(score, sentimentLabel)
 //
@@ -5,9 +11,9 @@
 //   - User's self-reported mood score  (subjective)
 //   - AI-detected sentiment label       (objective)
 //
-// Thresholds (confirmed by user):
-//   score >= 7  → user is reporting HIGH mood
-//   score <= 3  → user is reporting LOW mood
+// Thresholds (pulled from constants.js — single source of truth):
+//   score >= DIVERGENCE_SCORE_THRESHOLD (6) → user is reporting HIGH mood
+//   score <= CRISIS_LOW_SCORE_THRESHOLD (3) → user is reporting LOW mood
 //
 // Divergence triggers when:
 //   HIGH score  + NEGATIVE sentiment  (says happy, AI sees sadness/anger)
@@ -18,11 +24,11 @@
 const checkDivergence = (score, sentimentLabel) => {
   if (!sentimentLabel) return false; // no AI result → no divergence flag
 
-  const highMood = score >= 7;
-  const lowMood  = score <= 3;
+  const highMood = score >= DIVERGENCE_SCORE_THRESHOLD; // score ≥ 6
+  const lowMood  = score <= CRISIS_LOW_SCORE_THRESHOLD; // score ≤ 3
 
-  if (highMood && sentimentLabel === "NEGATIVE") return true;
-  if (lowMood  && sentimentLabel === "POSITIVE") return true;
+  if (highMood && sentimentLabel === SENTIMENT_LABELS.NEGATIVE) return true;
+  if (lowMood  && sentimentLabel === SENTIMENT_LABELS.POSITIVE) return true;
 
   return false;
 };

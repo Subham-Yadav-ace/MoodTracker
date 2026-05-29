@@ -1,14 +1,18 @@
 require("dotenv").config();
-const express = require("express");
+const express    = require("express");
 const { createServer } = require("http");
-const cors = require("cors");
+const cors       = require("cors");
 const cookieParser = require("cookie-parser");
-const helmet = require("helmet");
-const morgan = require("morgan");
+const helmet     = require("helmet");
+const morgan     = require("morgan");
+const cron       = require("node-cron");
 
-const connectDB = require("./src/config/db");
-const { initSocket } = require("./src/config/socket");
+const connectDB  = require("./src/config/db");
+const { initSocket }  = require("./src/config/socket");
 const { errorHandler } = require("./src/middleware/error.middleware");
+
+const { CRON_CRISIS_CHECK, CRON_WEEKLY_EMAIL } = require("./src/utils/constants");
+const { runCrisisCheck }  = require("./src/services/crisis.service");
 
 // ── Initialize Express ──────────────────────────────────────
 const app = express();
@@ -46,5 +50,18 @@ const PORT = process.env.PORT || 5000;
 connectDB().then(() => {
   httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+
+  // ── Cron: Nightly crisis check — every day at 8 PM IST ──────
+  cron.schedule(CRON_CRISIS_CHECK, () => {
+    console.log("[Cron] Running nightly crisis check...");
+    runCrisisCheck();
+  });
+
+  // ── Cron: Weekly email report — every Sunday at 9 AM IST ────
+  // TODO: wire sendWeeklyReports() once email.service.js is built
+  cron.schedule(CRON_WEEKLY_EMAIL, () => {
+    console.log("[Cron] Running weekly email report...");
+    // sendWeeklyReports();
   });
 });

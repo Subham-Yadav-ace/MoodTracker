@@ -31,6 +31,7 @@ const {
 } = require("../utils/constants");
 
 const { containsCrisisKeyword } = require("../utils/crisisKeywords");
+const { sendCrisisSMS }        = require("./twilio.service");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: isConsecutiveLowMoodStreak(entries)
@@ -155,7 +156,7 @@ const runCrisisCheck = async () => {
       // Fetch last CRISIS_CONSECUTIVE_DAYS + 2 entries (buffer for safety)
       // Sorted newest first so slice(0, N) gives the most recent N
       const entries = await MoodEntry.find({ userId: user._id })
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1 })    
         .limit(CRISIS_CONSECUTIVE_DAYS + 2)
         .select("score sentiment journalText createdAt");
 
@@ -181,13 +182,20 @@ const runCrisisCheck = async () => {
         `[CrisisService] ⚠️  CRISIS FLAG — User: ${user.name} (${user._id}) | Reason: ${reason}`
       );
 
-      // ── TODO: Wire Twilio SMS here (next step) ────────────
-      // await sendCrisisSMS({
-      //   toPhone:       user.trustedContact.phone,
-      //   toName:        user.trustedContact.name,
-      //   userName:      user.name,
-      //   reason,
-      // });
+      // ── Send SMS to trusted contact via Twilio ─────────────
+      try {
+        await sendCrisisSMS({
+          toPhone:  user.trustedContact.phone,
+          toName:   user.trustedContact.name,
+          userName: user.name,
+          reason,
+        });
+      } catch (smsErr) {
+        // SMS failure should NOT stop us from checking other users
+        console.error(
+          `[CrisisService] SMS failed for ${user.name}: ${smsErr.message}`
+        );
+      }
     }
 
     // Summary log

@@ -12,7 +12,8 @@ const { initSocket }  = require("./src/config/socket");
 const { errorHandler } = require("./src/middleware/error.middleware");
 
 const { CRON_CRISIS_CHECK, CRON_WEEKLY_EMAIL } = require("./src/utils/constants");
-const { runCrisisCheck }  = require("./src/services/crisis.service");
+const { runCrisisCheck }   = require("./src/services/crisis.service");
+const { sendWeeklyReports } = require("./src/services/email.service");
 
 // ── Initialize Express ──────────────────────────────────────
 const app = express();
@@ -59,9 +60,8 @@ connectDB().then(() => {
   });
 
   // ── Cron: Weekly email report — every Sunday at 9 AM IST ────
-  // TODO: wire sendWeeklyReports() once email.service.js is built
   cron.schedule(CRON_WEEKLY_EMAIL, () => {
     console.log("[Cron] Running weekly email report...");
-    // sendWeeklyReports();
+    sendWeeklyReports();
   });
 });

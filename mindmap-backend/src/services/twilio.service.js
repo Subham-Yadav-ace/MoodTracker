@@ -1,116 +1,145 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// twilio.service.js
+// twilio.service.js  (uses Fast2SMS — Indian SMS API)
 //
-// Sends an SMS to a user's trusted contact when a crisis is detected.
-// Called by crisis.service.js after any trigger fires.
+// Sends a crisis alert SMS via Fast2SMS REST API.
+// Works for any Indian mobile number. No DLT registration needed for dev.
+// ₹50 free credits on signup (~250 SMS).
 //
-// Requires these env vars (already in .env):
-//   TWILIO_ACCOUNT_SID   → your Twilio Account SID  (ACxxx...)
-//   TWILIO_AUTH_TOKEN    → your Twilio Auth Token
-//   TWILIO_PHONE_NUMBER  → your Twilio number (e.g. +1xxxxxxxxxx)
+// SETUP (one time):
+//   1. Sign up at https://www.fast2sms.com
+//   2. Dashboard → Dev API → copy your API Key
+//   3. Add to .env:
+//        FAST2SMS_API_KEY=your_api_key_here
 //
-// HOW IT WORKS:
-//   1. crisis.service.js detects a flagged user
-//   2. Calls sendCrisisSMS({ toPhone, toName, userName, reason })
-//   3. This file builds the message text and fires it via Twilio REST API
-//   4. Returns { success: true, sid } or throws with a clear error message
+// API docs: https://docs.fast2sms.com
+//
+// NOTE: Works only for Indian numbers (+91xxxxxxxxxx).
+//       For international numbers, switch to a global provider.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const twilio = require("twilio");
+const axios = require("axios");
 
-// ── Lazy-initialize the Twilio client ────────────────────────────────────────
-// We initialize inside the function (not at module load time) so that:
-//   - Missing env vars don't crash the server on startup
-//   - Tests can stub the env vars without module-level side effects
-const getClient = () => {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+const FAST2SMS_URL = "https://www.fast2sms.com/dev/bulkV2";
 
-  if (!accountSid || !authToken) {
-    throw new Error(
-      "[TwilioService] Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN in environment."
-    );
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER: getConfig()
+// Validates the required env var.
+// ─────────────────────────────────────────────────────────────────────────────
+const getConfig = () => {
+  const apiKey = process.env.FAST2SMS_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("[Fast2SMS] Missing FAST2SMS_API_KEY in environment.");
   }
 
-  return twilio(accountSid, authToken);
+  return { apiKey };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER: sanitizePhone(phone)
+//
+// Fast2SMS expects the number WITHOUT the country code prefix.
+// Strips +91 or 91 from the start if present.
+//
+// Examples:
+//   "+919876543210" → "9876543210"
+//   "919876543210"  → "9876543210"
+//   "9876543210"    → "9876543210"  (already clean)
+// ─────────────────────────────────────────────────────────────────────────────
+const sanitizePhone = (phone) => {
+  const cleaned = phone.replace(/\s+/g, "");          // remove spaces
+  if (cleaned.startsWith("+91")) return cleaned.slice(3);
+  if (cleaned.startsWith("91") && cleaned.length === 12) return cleaned.slice(2);
+  return cleaned;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: buildSMSBody({ toName, userName, reason })
 //
-// Builds the human-readable SMS text sent to the trusted contact.
-// Kept short — SMS messages should be under 160 characters when possible.
-//
-// Example output:
-//   "Hi Priya, this is MindMap. Your contact Rahul may need support right now.
-//    Reason: 3 consecutive low-mood days. Please check in with them. 💙"
-//
-// @param  {{ toName: string, userName: string, reason: string }}
-// @returns {string}
+// Builds the SMS text. Fast2SMS has a 160 char limit per segment.
 // ─────────────────────────────────────────────────────────────────────────────
 const buildSMSBody = ({ toName, userName, reason }) => {
   return (
-    `Hi ${toName}, this is MindMap. ` +
-    `Your contact ${userName} may need support right now.\n` +
-    `Reason: ${reason}.\n` +
-    `Please check in with them. 💙`
+    `Hi ${toName}, MindMap alert: ${userName} may need support right now. ` +
+    `Reason: ${reason}. Please check in with them.`
   );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN: sendCrisisSMS({ toPhone, toName, userName, reason })
 //
-// Sends one SMS to the trusted contact.
+// Called by crisis.service.js when a user is flagged.
 //
-// @param  {object}  opts
-// @param  {string}  opts.toPhone   — trusted contact's phone (e.g. "+919876543210")
-// @param  {string}  opts.toName    — trusted contact's name  (e.g. "Priya")
-// @param  {string}  opts.userName  — the at-risk user's name (e.g. "Rahul")
-// @param  {string}  opts.reason    — human-readable crisis reason from buildCrisisReasons()
+// Fast2SMS API call:
+//   POST https://www.fast2sms.com/dev/bulkV2
+//   Headers: authorization: <api_key>
+//   Body (form):
+//     route=q               → "Quick Transactional" route (no template needed)
+//     message=<text>        → your SMS body
+//     numbers=9876543210    → recipient (10-digit, no country code)
 //
-// @returns {Promise<{ success: boolean, sid: string }>}
-// @throws  {Error}  if env vars missing or Twilio API call fails
+// @param  {string}  toPhone   — trusted contact's number ("+919876543210" or "9876543210")
+// @param  {string}  toName    — trusted contact's name
+// @param  {string}  userName  — the at-risk user's name
+// @param  {string}  reason    — human-readable crisis reason
+//
+// @returns {Promise<{ success: boolean, message: string }>}
+// @throws  {Error}  if config missing or API call fails
 // ─────────────────────────────────────────────────────────────────────────────
 const sendCrisisSMS = async ({ toPhone, toName, userName, reason }) => {
-  // ── Guard: all fields are required ───────────────────────────────────────
+  // ── Guard: all fields required ────────────────────────────────────────────
   if (!toPhone || !toName || !userName || !reason) {
     throw new Error(
-      "[TwilioService] sendCrisisSMS called with missing fields. " +
-      `Received: toPhone=${toPhone}, toName=${toName}, userName=${userName}`
+      `[Fast2SMS] Missing required fields. Got: toPhone=${toPhone}, toName=${toName}, userName=${userName}`
     );
   }
 
-  const fromPhone = process.env.TWILIO_PHONE_NUMBER;
-
-  if (!fromPhone) {
-    throw new Error("[TwilioService] Missing TWILIO_PHONE_NUMBER in environment.");
-  }
-
-  const client = getClient();
-  const body   = buildSMSBody({ toName, userName, reason });
+  const { apiKey } = getConfig();
+  const message    = buildSMSBody({ toName, userName, reason });
+  const numbers    = sanitizePhone(toPhone); // Fast2SMS needs 10-digit number
 
   try {
-    const message = await client.messages.create({
-      body,
-      from: fromPhone,
-      to:   toPhone,
-    });
-
-    console.log(
-      `[TwilioService] ✅ SMS sent to ${toName} (${toPhone}) — SID: ${message.sid}`
+    const response = await axios.post(
+      FAST2SMS_URL,
+      {
+        route:   "q",       // Quick route — no pre-approved template needed
+        message,
+        numbers,            // 10-digit Indian mobile number
+        flash:   0,         // 0 = regular SMS, 1 = flash SMS (pops up on screen)
+      },
+      {
+        headers: {
+          authorization: apiKey,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000, // 15s
+      }
     );
 
-    return { success: true, sid: message.sid };
+    if (response.data?.return === true) {
+      console.log(
+        `[Fast2SMS] ✅ SMS sent to ${toName} (${numbers}) — Request ID: ${response.data?.request_id}`
+      );
+      return { success: true, message: response.data?.message?.[0] || "Sent" };
+    } else {
+      throw new Error(response.data?.message || "Fast2SMS returned failure");
+    }
 
   } catch (err) {
-    // Twilio errors have a .code and .message — log both for debugging
-    console.error(
-      `[TwilioService] ❌ Failed to send SMS to ${toPhone} — ` +
-      `Code: ${err.code} | Message: ${err.message}`
-    );
+    const status  = err.response?.status;
+    const errData = err.response?.data;
 
-    // Re-throw so crisis.service.js can decide whether to continue or halt
-    throw err;
+    if (status === 401) {
+      console.error("[Fast2SMS] ❌ Invalid API key. Check FAST2SMS_API_KEY in .env");
+    } else if (status === 400) {
+      console.error("[Fast2SMS] ❌ Bad request:", errData);
+    } else if (err.code === "ECONNABORTED") {
+      console.error("[Fast2SMS] ❌ Request timed out.");
+    } else {
+      console.error(`[Fast2SMS] ❌ Failed: ${err.message}`);
+    }
+
+    throw err; // Re-throw → crisis.service.js logs and continues to next user
   }
 };
 

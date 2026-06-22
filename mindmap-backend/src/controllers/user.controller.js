@@ -103,7 +103,7 @@ const updateProfile = async (req, res, next) => {
     const updatedUser = await User.findByIdAndUpdate(
       req.user.userId,
       { $set: updateFields },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
 
     if (!updatedUser) {
@@ -150,7 +150,7 @@ const updateTrustedContact = async (req, res, next) => {
           "trustedContact.phone": phone.trim(),
         },
       },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
 
     if (!updatedUser) {
@@ -182,7 +182,7 @@ const removeTrustedContact = async (req, res, next) => {
           "trustedContact.phone": null,
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     res.status(200).json({

@@ -1,40 +1,39 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Tag, Zap, FileText, Send, X } from "lucide-react";
+import { Tag, Zap, FileText, Send } from "lucide-react";
 import { useMood } from "../hooks/useMood";
 import DivergenceCard from "./DivergenceCard";
 import SentimentBadge from "./SentimentBadge";
 import toast from "react-hot-toast";
 
 const EMOTION_TAGS = [
-  { id: "happy", label: "Happy", emoji: "😊" },
-  { id: "anxious", label: "Anxious", emoji: "😰" },
-  { id: "sad", label: "Sad", emoji: "😢" },
-  { id: "angry", label: "Angry", emoji: "😠" },
-  { id: "calm", label: "Calm", emoji: "😌" },
-  { id: "exhausted", label: "Exhausted", emoji: "😴" },
-  { id: "hopeful", label: "Hopeful", emoji: "🌟" },
-  { id: "overwhelmed", label: "Overwhelmed", emoji: "😵" },
-  { id: "lonely", label: "Lonely", emoji: "🥺" },
-  { id: "grateful", label: "Grateful", emoji: "🙏" },
-  { id: "irritated", label: "Irritated", emoji: "😤" },
-  { id: "motivated", label: "Motivated", emoji: "💪" },
+  { id: "happy",      label: "Happy",       emoji: "😊" },
+  { id: "anxious",    label: "Anxious",     emoji: "😰" },
+  { id: "sad",        label: "Sad",         emoji: "😢" },
+  { id: "angry",      label: "Angry",       emoji: "😠" },
+  { id: "calm",       label: "Calm",        emoji: "😌" },
+  { id: "exhausted",  label: "Exhausted",   emoji: "😴" },
+  { id: "hopeful",    label: "Hopeful",     emoji: "🌟" },
+  { id: "overwhelmed",label: "Overwhelmed", emoji: "😵" },
+  { id: "lonely",     label: "Lonely",      emoji: "🥺" },
+  { id: "grateful",   label: "Grateful",    emoji: "🙏" },
+  { id: "irritated",  label: "Irritated",   emoji: "😤" },
+  { id: "motivated",  label: "Motivated",   emoji: "💪" },
 ];
 
 const TRIGGERS = [
-  { id: "poor_sleep", label: "Poor Sleep", emoji: "😴" },
-  { id: "work_stress", label: "Work Stress", emoji: "💼" },
-  { id: "social_interaction", label: "Social", emoji: "👥" },
-  { id: "exercise", label: "Exercise", emoji: "🏃" },
-  { id: "diet", label: "Diet", emoji: "🥗" },
-  { id: "loneliness", label: "Loneliness", emoji: "🔇" },
-  { id: "financial_stress", label: "Financial", emoji: "💸" },
-  { id: "relationship", label: "Relationship", emoji: "❤️" },
-  { id: "health_issue", label: "Health Issue", emoji: "🏥" },
-  { id: "academic_pressure", label: "Academic", emoji: "📚" },
+  { id: "poor_sleep",         label: "Poor Sleep",   emoji: "😴" },
+  { id: "work_stress",        label: "Work Stress",  emoji: "💼" },
+  { id: "social_interaction", label: "Social",       emoji: "👥" },
+  { id: "exercise",           label: "Exercise",     emoji: "🏃" },
+  { id: "diet",               label: "Diet",         emoji: "🥗" },
+  { id: "loneliness",         label: "Loneliness",   emoji: "🔇" },
+  { id: "financial_stress",   label: "Financial",    emoji: "💸" },
+  { id: "relationship",       label: "Relationship", emoji: "❤️" },
+  { id: "health_issue",       label: "Health Issue", emoji: "🏥" },
+  { id: "academic_pressure",  label: "Academic",     emoji: "📚" },
 ];
 
-// Score color gradient
 const getScoreGradient = (score) => {
   if (score >= 8) return "from-emerald-500 to-green-400";
   if (score >= 6) return "from-lime-500 to-yellow-400";
@@ -52,6 +51,7 @@ const getScoreLabel = (score) => {
 
 const MoodForm = ({ onSuccess }) => {
   const { submitMood, loading } = useMood();
+  const navigate = useNavigate();
   const [score, setScore] = useState(5);
   const [selectedEmotions, setSelectedEmotions] = useState([]);
   const [selectedTriggers, setSelectedTriggers] = useState([]);
@@ -80,16 +80,22 @@ const MoodForm = ({ onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!journal.trim()) {
+      toast.error("Please write something in your journal entry.");
+      return;
+    }
     try {
-      const data = await submitMood({
+      // submitMood returns { success, message, data: entry }
+      const response = await submitMood({
         score,
         emotionTags: selectedEmotions,
-        triggers: selectedTriggers,
+        triggers:    selectedTriggers,
         journalText: journal,
       });
-      setResult(data.entry || data);
-      toast.success("Mood logged successfully! 🎉");
-      onSuccess?.(data.entry || data);
+      const entry = response.data; // The actual MoodEntry document
+      setResult(entry);
+      toast.success(response.message || "Mood logged successfully! 🎉");
+      onSuccess?.(entry);
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to log mood");
     }
@@ -129,18 +135,26 @@ const MoodForm = ({ onSuccess }) => {
           />
         )}
 
-        <button
-          className="btn-secondary w-full"
-          onClick={() => {
-            setResult(null);
-            setScore(5);
-            setSelectedEmotions([]);
-            setSelectedTriggers([]);
-            setJournal("");
-          }}
-        >
-          Log another entry
-        </button>
+        <div className="flex gap-3">
+          <button
+            className="btn-secondary flex-1"
+            onClick={() => {
+              setResult(null);
+              setScore(5);
+              setSelectedEmotions([]);
+              setSelectedTriggers([]);
+              setJournal("");
+            }}
+          >
+            Log another entry
+          </button>
+          <button
+            className="btn-primary flex-1"
+            onClick={() => navigate("/")}
+          >
+            Back to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
@@ -283,7 +297,7 @@ const MoodForm = ({ onSuccess }) => {
         <div className="flex items-center gap-2 mb-3">
           <FileText size={15} style={{ color: "#a78bfa" }} />
           <label htmlFor="mood-journal" className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-            Journal entry (optional)
+            Journal entry <span className="text-red-400">*</span>
           </label>
           <span className="ml-auto text-xs" style={{ color: "var(--text-muted)" }}>
             {journal.length}/5000
@@ -296,6 +310,7 @@ const MoodForm = ({ onSuccess }) => {
           rows={5}
           className="input-base resize-none"
           placeholder="Write about your day, how you're feeling, what's on your mind... Our AI reads this to understand your emotions beyond the score."
+          required
         />
         <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
           <span>🧠</span>
@@ -305,7 +320,7 @@ const MoodForm = ({ onSuccess }) => {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !journal.trim()}
         id="mood-submit-btn"
         className="btn-primary w-full py-4 text-base"
       >

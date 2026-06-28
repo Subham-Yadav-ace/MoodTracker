@@ -1,11 +1,10 @@
 import { useEffect, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
-import { useAuth } from "../context/AuthContext";
+
 
 let socketInstance = null;
 
 export const useSocket = () => {
-  const { isAuthenticated } = useAuth();
   const socketRef = useRef(null);
 
   const connect = useCallback(() => {

@@ -7,54 +7,47 @@ export const useMood = () => {
   const [entries, setEntries] = useState([]);
 
   // ─── Submit new mood entry ────────────────────────────────────
+  // Backend returns { success, message, data: entry }
   const submitMood = useCallback(async (moodData) => {
     setLoading(true);
     try {
       const { data } = await api.post("/mood", moodData);
-      return data;
-    } catch (err) {
-      throw err;
+      return data; // { success, message, data: entry }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // ─── Fetch weekly entries ─────────────────────────────────────
+  // ─── Fetch weekly entries (last 7 days) ───────────────────────
+  // Backend returns { success, entries: [...], stats: { averageScore, topEmotion, ... } }
   const fetchWeek = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get("/mood/week");
       setEntries(data.entries || []);
-      return data;
-    } catch (err) {
-      throw err;
+      return data; // pass through so callers can use data.entries + data.stats
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // ─── Fetch monthly entries ────────────────────────────────────
+  // ─── Fetch monthly entries (last 30 days) ─────────────────────
   const fetchMonth = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get("/mood/month");
       setEntries(data.entries || []);
       return data;
-    } catch (err) {
-      throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
   // ─── Fetch insights ───────────────────────────────────────────
+  // Backend returns flat { success, streak, insights: [...], emotionFrequency: [...], ... }
   const fetchInsights = useCallback(async () => {
-    try {
-      const { data } = await api.get("/mood/insights");
-      return data;
-    } catch (err) {
-      throw err;
-    }
+    const { data } = await api.get("/mood/insights");
+    return data; // flat: data.streak, data.insights, data.emotionFrequency, etc.
   }, []);
 
   // ─── Delete entry ─────────────────────────────────────────────
@@ -63,9 +56,8 @@ export const useMood = () => {
       await api.delete(`/mood/${entryId}`);
       setEntries((prev) => prev.filter((e) => e._id !== entryId));
       toast.success("Entry deleted");
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete entry");
-      throw err;
     }
   }, []);
 

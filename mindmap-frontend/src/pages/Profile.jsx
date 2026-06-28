@@ -10,7 +10,6 @@ import {
   LogOut,
   AlertTriangle,
   CheckCircle2,
-  Edit3,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
@@ -244,7 +243,7 @@ const Profile = () => {
             <form onSubmit={saveTrustedContact} className="space-y-4">
               <div>
                 <label htmlFor="contact-name" className="block text-sm font-medium mb-2" style={{ color: "var(--text-primary)" }}>
-                  Contact's Name
+                  Contact&apos;s Name
                 </label>
                 <div className="relative">
                   <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
@@ -307,7 +306,7 @@ const Profile = () => {
             <div className="flex gap-2">
               <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0 mt-0.5" />
               <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                Your contact will receive an SMS like: "Hi [Name], this is MindMap. [Your Name] may be going through a difficult time. Please check in with them."
+                Your contact will receive an SMS like: &quot;Hi [Name], this is MindMap. [Your Name] may be going through a difficult time. Please check in with them.&quot;
               </p>
             </div>
           </div>

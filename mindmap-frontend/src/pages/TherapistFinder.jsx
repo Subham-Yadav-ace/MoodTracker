@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapPin, Search, ExternalLink, Filter } from "lucide-react";
+import { MapPin, Search, ExternalLink } from "lucide-react";
 
 // Note: Full Google Maps integration requires VITE_GOOGLE_MAPS_KEY env var
 // This component shows the full UI with a placeholder map area
@@ -11,14 +11,12 @@ const TherapistFinder = () => {
   const [city, setCity] = useState("");
   const [specialty, setSpecialty] = useState("All");
   const [mode, setMode] = useState("All");
-  const [searched, setSearched] = useState(false);
   const [searchInput, setSearchInput] = useState("");
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (!searchInput.trim()) return;
     setCity(searchInput.trim());
-    setSearched(true);
   };
 
   const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;

@@ -11,7 +11,7 @@ const MoodLog = () => {
       <div className="mb-8">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm mb-4 transition-colors hover:text-white"
+          className="flex items-center gap-2 text-sm mb-4 transition-colors hover:text-slate-900"
           style={{ color: "var(--text-muted)" }}
         >
           <ArrowLeft size={16} />
@@ -48,7 +48,7 @@ const MoodLog = () => {
       >
         <span className="text-lg">🔒</span>
         <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          Your journal entries are private and never shared. AI sentiment analysis runs on HuggingFace's servers
+          Your journal entries are private and never shared. AI sentiment analysis runs on HuggingFace&apos;s servers
           and only the result (emotion label) is stored — not your raw text in ML logs.
         </p>
       </div>

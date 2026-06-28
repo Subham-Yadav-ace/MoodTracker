@@ -4,83 +4,122 @@ import { format } from "date-fns";
 import CrisisBanner from "./CrisisBanner";
 
 const ChatRoom = ({ socket, room, anonUsername }) => {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [typingUsers, setTypingUsers] = useState([]);
-  const [userCount, setUserCount] = useState(0);
-  const [crisisAlert, setCrisisAlert] = useState(null);
-  const [privateSupportMsg, setPrivateSupportMsg] = useState(null);
-  const messagesEndRef = useRef(null);
-  const typingTimer = useRef(null);
-  const [sending, setSending] = useState(false);
+  const [messages, setMessages]           = useState([]);
+  const [input, setInput]                 = useState("");
+  const [typingUsers, setTypingUsers]     = useState([]);
+  const [userCount, setUserCount]         = useState(0);
+  const [crisisAlert, setCrisisAlert]     = useState(null);
+  const messagesEndRef                    = useRef(null);
+  const typingTimer                       = useRef(null);
+  const [sending, setSending]             = useState(false);
 
-  // Auto-scroll
+  // Auto-scroll to bottom whenever messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Socket listeners
+  // ── Socket event listeners ────────────────────────────────────
   useEffect(() => {
     if (!socket || !room) return;
 
-    socket.on("room-history", (history) => setMessages(history));
+    // Receive chat history on room join
+    socket.on("chat_history", (history) => {
+      setMessages(history || []);
+    });
 
-    socket.on("receive-message", (msg) => {
+    // New message broadcast
+    socket.on("receive_message", (msg) => {
       setMessages((prev) => [...prev, msg]);
     });
 
-    socket.on("user-typing", (user) => {
-      if (user !== anonUsername) {
-        setTypingUsers((prev) => [...new Set([...prev, user])]);
+    // Typing indicators
+    socket.on("user_typing", ({ anonUsername: typingUser }) => {
+      if (typingUser !== anonUsername) {
+        setTypingUsers((prev) => [...new Set([...prev, typingUser])]);
       }
     });
 
-    socket.on("user-stop-typing", (user) => {
-      setTypingUsers((prev) => prev.filter((u) => u !== user));
+    socket.on("user_stop_typing", ({ anonUsername: typingUser }) => {
+      setTypingUsers((prev) => prev.filter((u) => u !== typingUser));
     });
 
-    socket.on("user-count", ({ count }) => setUserCount(count));
+    // Room user count
+    socket.on("room_count", ({ count }) => setUserCount(count));
 
-    socket.on("crisis-alert", (data) => setCrisisAlert(data));
+    // User join/leave notifications (optional: could add system messages)
+    socket.on("user_joined", ({ anonUsername: who }) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id:          `sys-${Date.now()}`,
+          anonUsername: "System",
+          message:      `${who} joined the room`,
+          system:       true,
+          createdAt:    new Date().toISOString(),
+        },
+      ]);
+    });
 
-    socket.on("private-support", (data) => setPrivateSupportMsg(data));
+    socket.on("user_left", ({ anonUsername: who }) => {
+      // Clear typing indicator if they leave
+      setTypingUsers((prev) => prev.filter((u) => u !== who));
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id:          `sys-${Date.now()}`,
+          anonUsername: "System",
+          message:      `${who} left the room`,
+          system:       true,
+          createdAt:    new Date().toISOString(),
+        },
+      ]);
+    });
+
+    // Crisis alert from server
+    socket.on("crisis_alert", (data) => {
+      setCrisisAlert(data);
+    });
 
     return () => {
-      socket.off("room-history");
-      socket.off("receive-message");
-      socket.off("user-typing");
-      socket.off("user-stop-typing");
-      socket.off("user-count");
-      socket.off("crisis-alert");
-      socket.off("private-support");
+      socket.off("chat_history");
+      socket.off("receive_message");
+      socket.off("user_typing");
+      socket.off("user_stop_typing");
+      socket.off("room_count");
+      socket.off("user_joined");
+      socket.off("user_left");
+      socket.off("crisis_alert");
     };
   }, [socket, room, anonUsername]);
 
+  // ── Send message ──────────────────────────────────────────────
   const handleSend = (e) => {
     e.preventDefault();
     if (!input.trim() || !socket || sending) return;
 
     setSending(true);
-    socket.emit("send-message", { room, message: input.trim() });
+    socket.emit("send_message", { room, anonUsername, message: input.trim() });
     setInput("");
     setSending(false);
 
-    // Stop typing
-    socket.emit("stop-typing", { room });
+    // Stop typing signal
+    socket.emit("stop_typing", { room });
     clearTimeout(typingTimer.current);
-    setTypingUsers([]);
+    setTypingUsers((prev) => prev.filter((u) => u !== anonUsername));
   };
 
+  // ── Typing indicator ─────────────────────────────────────────
   const handleInputChange = (e) => {
     setInput(e.target.value);
     socket?.emit("typing", { room });
     clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => {
-      socket?.emit("stop-typing", { room });
+      socket?.emit("stop_typing", { room });
     }, 1500);
   };
 
-  const isSelf = (msg) => msg.anonUsername === anonUsername;
+  const isSelf   = (msg) => msg.anonUsername === anonUsername;
+  const isSystem = (msg) => msg.system === true;
 
   return (
     <div className="flex flex-col h-full">
@@ -106,23 +145,14 @@ const ChatRoom = ({ socket, room, anonUsername }) => {
       {/* Crisis banner */}
       {crisisAlert && (
         <div className="p-3 flex-shrink-0">
-          <CrisisBanner helplines={crisisAlert.helplines} onDismiss={() => setCrisisAlert(null)} />
+          <CrisisBanner
+            helplines={crisisAlert.helplines}
+            onDismiss={() => setCrisisAlert(null)}
+          />
         </div>
       )}
 
-      {/* Private support */}
-      {privateSupportMsg && (
-        <div
-          className="mx-4 mt-3 p-4 rounded-xl flex-shrink-0 animate-fade-in"
-          style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)" }}
-        >
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            💜 {privateSupportMsg.message}
-          </p>
-        </div>
-      )}
-
-      {/* Messages */}
+      {/* Messages list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="text-center py-12">
@@ -133,38 +163,53 @@ const ChatRoom = ({ socket, room, anonUsername }) => {
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div
-            key={msg._id || i}
-            className={`flex flex-col ${isSelf(msg) ? "items-end" : "items-start"}`}
-          >
-            {!isSelf(msg) && (
-              <span className="text-xs mb-1 ml-1" style={{ color: "var(--text-muted)" }}>
-                {msg.anonUsername}
-              </span>
-            )}
+        {messages.map((msg, i) => {
+          if (isSystem(msg)) {
+            return (
+              <div key={msg._id || i} className="flex justify-center">
+                <span
+                  className="text-xs px-3 py-1 rounded-full"
+                  style={{ background: "var(--bg-card)", color: "var(--text-muted)" }}
+                >
+                  {msg.message}
+                </span>
+              </div>
+            );
+          }
+
+          return (
             <div
-              className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
-                isSelf(msg)
-                  ? "gradient-bg text-white rounded-br-sm"
-                  : "rounded-bl-sm"
-              }`}
-              style={
-                !isSelf(msg)
-                  ? { background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border)" }
-                  : {}
-              }
+              key={msg._id || i}
+              className={`flex flex-col ${isSelf(msg) ? "items-end" : "items-start"}`}
             >
-              {msg.crisisFlag && (
-                <span className="block text-xs text-red-300 mb-1">🚨 Crisis resources below ↓</span>
+              {!isSelf(msg) && (
+                <span className="text-xs mb-1 ml-1" style={{ color: "var(--text-muted)" }}>
+                  {msg.anonUsername}
+                </span>
               )}
-              {msg.message}
+              <div
+                className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
+                  isSelf(msg)
+                    ? "gradient-bg text-white rounded-br-sm"
+                    : "rounded-bl-sm"
+                }`}
+                style={
+                  !isSelf(msg)
+                    ? { background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border)" }
+                    : {}
+                }
+              >
+                {msg.crisisFlag && (
+                  <span className="block text-xs text-red-300 mb-1">🚨 Crisis resources below ↓</span>
+                )}
+                {msg.message}
+              </div>
+              <span className="text-xs mt-1 mx-1" style={{ color: "var(--text-muted)" }}>
+                {msg.createdAt ? format(new Date(msg.createdAt), "h:mm a") : ""}
+              </span>
             </div>
-            <span className="text-xs mt-1 mx-1" style={{ color: "var(--text-muted)" }}>
-              {format(new Date(msg.createdAt), "h:mm a")}
-            </span>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Typing indicator */}
         {typingUsers.length > 0 && (
@@ -174,13 +219,13 @@ const ChatRoom = ({ socket, room, anonUsername }) => {
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
             >
               <div className="flex gap-1 items-center h-4">
-                {[0, 1, 2].map((i) => (
+                {[0, 1, 2].map((idx) => (
                   <div
-                    key={i}
+                    key={idx}
                     className="w-1.5 h-1.5 rounded-full"
                     style={{
                       background: "var(--text-muted)",
-                      animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                      animation: `bounce 1.2s ease-in-out ${idx * 0.2}s infinite`,
                     }}
                   />
                 ))}
@@ -195,7 +240,7 @@ const ChatRoom = ({ socket, room, anonUsername }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
+      {/* Input bar */}
       <div
         className="px-4 py-3 flex-shrink-0"
         style={{ borderTop: "1px solid var(--border)" }}

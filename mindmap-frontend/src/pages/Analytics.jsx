@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, TrendingUp, Tag, Zap, AlertTriangle } from "lucide-react";
+import { TrendingUp, Tag, Zap, AlertTriangle } from "lucide-react";
 import { useMood } from "../hooks/useMood";
 import MoodChart from "../components/MoodChart";
 import EmotionFrequency from "../components/EmotionFrequency";
@@ -15,32 +15,31 @@ const TABS = [
 ];
 
 const Analytics = () => {
-  const { fetchWeek, fetchMonth, fetchInsights, loading } = useMood();
+  const { fetchWeek, fetchMonth, fetchInsights } = useMood();
   const [activeTab, setActiveTab] = useState("timeline");
   const [range, setRange] = useState("week");
   const [entries, setEntries] = useState([]);
   const [insights, setInsights] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
 
-  const load = async (r) => {
-    setPageLoading(true);
-    try {
-      const [data, ins] = await Promise.all([
-        r === "week" ? fetchWeek() : fetchMonth(),
-        fetchInsights(),
-      ]);
-      setEntries(data?.entries || []);
-      setInsights(ins);
-    } catch {
-      setEntries([]);
-    } finally {
-      setPageLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const load = async (r) => {
+      setPageLoading(true);
+      try {
+        const [data, ins] = await Promise.all([
+          r === "week" ? fetchWeek() : fetchMonth(),
+          fetchInsights(),
+        ]);
+        setEntries(data?.entries || []);
+        setInsights(ins);
+      } catch {
+        setEntries([]);
+      } finally {
+        setPageLoading(false);
+      }
+    };
     load(range);
-  }, [range]);
+  }, [range, fetchWeek, fetchMonth, fetchInsights]);
 
   const divergentEntries = entries.filter((e) => e.divergenceFlag);
   const avgScore = entries.length
@@ -176,7 +175,7 @@ const Analytics = () => {
                 Divergence Insights
               </h2>
               <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-                Entries where your reported score didn't match your writing's emotional tone.
+                Entries where your reported score didn&apos;t match your writing&apos;s emotional tone.
               </p>
 
               {divergentEntries.length === 0 ? (
@@ -219,7 +218,7 @@ const Analytics = () => {
                       </div>
                       {entry.journalText && (
                         <p className="text-sm truncate-2 italic" style={{ color: "var(--text-muted)" }}>
-                          "{entry.journalText}"
+                          &quot;{entry.journalText}&quot;
                         </p>
                       )}
                     </div>

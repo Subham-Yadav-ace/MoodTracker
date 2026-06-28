@@ -6,6 +6,7 @@ const {
   updateProfile,
   updateTrustedContact,
   removeTrustedContact,
+  deleteAccount,
 } = require("../controllers/user.controller");
 const { protect } = require("../middleware/auth.middleware");
 
@@ -47,16 +48,19 @@ const trustedContactValidation = [
 
 // ── Routes ───────────────────────────────────────────────────
 
-// GET  /api/user/profile     → get profile + account stats
+// GET  /api/user/profile
 router.get("/profile", getProfile);
 
-// PUT  /api/user/profile     → update name and/or email
+// PUT  /api/user/profile
 router.put("/profile", updateProfileValidation, updateProfile);
 
-// PUT  /api/user/trusted-contact   → set/update trusted contact
+// DELETE /api/user/profile  — permanently deletes account + all data
+router.delete("/profile", deleteAccount);
+
+// PUT  /api/user/trusted-contact
 router.put("/trusted-contact", trustedContactValidation, updateTrustedContact);
 
-// DELETE /api/user/trusted-contact → remove trusted contact
+// DELETE /api/user/trusted-contact
 router.delete("/trusted-contact", removeTrustedContact);
 
 module.exports = router;

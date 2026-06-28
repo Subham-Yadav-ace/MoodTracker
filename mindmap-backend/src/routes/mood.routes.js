@@ -4,6 +4,8 @@ const { body, param } = require("express-validator");
 const {
   createMoodEntry,
   getMoodEntries,
+  getWeekEntries,
+  getMonthEntries,
   getMoodEntryById,
   deleteMoodEntry,
   getMoodInsights,
@@ -59,8 +61,17 @@ const mongoIdValidation = [
 ];
 
 // ── Routes ───────────────────────────────────────────────────
-// GET  /api/mood/insights   ← must be defined BEFORE /:id to avoid "insights" matching as :id
+// NOTE: Static named routes MUST be defined BEFORE /:id to avoid "insights"
+// being matched as an ID param.
+
+// GET  /api/mood/insights  → analytics + generated insight strings
 router.get("/insights", getMoodInsights);
+
+// GET  /api/mood/week     → last 7 days entries + stats
+router.get("/week", getWeekEntries);
+
+// GET  /api/mood/month    → last 30 days entries + stats
+router.get("/month", getMonthEntries);
 
 // POST /api/mood
 router.post("/", ...createMoodValidation, createMoodEntry);

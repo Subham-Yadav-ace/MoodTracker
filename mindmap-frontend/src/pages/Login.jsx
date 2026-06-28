@@ -183,7 +183,7 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors hover:text-white"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors hover:text-slate-900"
                   style={{ color: "var(--text-muted)" }}
                   aria-label={showPass ? "Hide password" : "Show password"}
                 >
@@ -220,7 +220,7 @@ const Login = () => {
           <div className="divider" />
 
           <p className="text-center text-sm" style={{ color: "var(--text-secondary)" }}>
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link
               to="/register"
               className="font-semibold transition-colors"

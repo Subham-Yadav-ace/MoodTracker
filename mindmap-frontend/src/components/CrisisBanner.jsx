@@ -32,10 +32,10 @@ const CrisisBanner = ({ helplines, onDismiss }) => {
           </div>
           <div>
             <p className="text-sm font-semibold text-red-400">
-              If you're in crisis, help is available
+              If you&apos;re feeling overwhelmed, please reach out to someone who can help
             </p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              You don't have to go through this alone.
+              You&apos;re not alone. Our AI detected you might be going through a difficult time.
             </p>
           </div>
         </div>

@@ -31,7 +31,7 @@ const getScoreEmoji = (score) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { fetchWeek, fetchInsights, loading } = useMood();
+  const { fetchWeek, fetchInsights } = useMood();
   const [weekData, setWeekData] = useState(null);
   const [insights, setInsights] = useState(null);
   const [todayEntry, setTodayEntry] = useState(null);
@@ -57,7 +57,7 @@ const Dashboard = () => {
       }
     };
     load();
-  }, []);
+  }, [fetchWeek, fetchInsights]);
 
   const weekStats = weekData
     ? {
@@ -104,7 +104,7 @@ const Dashboard = () => {
             id="dashboard-log-mood-btn"
           >
             <PenLine size={16} />
-            Log Today's Mood
+            Log Today&apos;s Mood
           </Link>
         </div>
       </div>
@@ -127,7 +127,7 @@ const Dashboard = () => {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-                  Today's Mood
+                  Today&apos;s Mood
                 </p>
                 <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--bg-card)", color: "var(--text-muted)" }}>
                   {format(new Date(todayEntry.createdAt), "h:mm a")}

@@ -10,58 +10,58 @@
 //   3. Real-time messaging — broadcast to room, saved to MongoDB
 //   4. Crisis detection    — every message scanned by containsCrisisKeyword()
 //                            → if flagged: emit "crisis_alert" back to sender
-//                            → ChatMessage saved with crisisFlag: true
+//   5. Typing indicators   — "typing" / "stop_typing" events (ephemeral)
+//   6. Room user count     — "room_count" emitted to room on join/leave
 //
 // EVENTS (client → server):
 //   "join_room"    { room, anonUsername }
 //   "send_message" { room, anonUsername, message }
 //   "leave_room"   { room }
+//   "typing"       { room }
+//   "stop_typing"  { room }
 //
 // EVENTS (server → client):
-//   "chat_history"  array of last N ChatMessage docs (on join)
+//   "chat_history"    array of last N ChatMessage docs (on join)
 //   "receive_message" { room, anonUsername, message, crisisFlag, createdAt }
-//   "crisis_alert"  { message: string }  — sent only to the sender if keyword detected
-//   "room_error"    { message: string }  — invalid room or bad payload
-//   "user_joined"   { anonUsername, room } — broadcast to room
-//   "user_left"     { anonUsername, room } — broadcast to room
+//   "crisis_alert"    { message: string }    — sent only to sender if keyword detected
+//   "room_error"      { message: string }    — invalid room or bad payload
+//   "user_joined"     { anonUsername, room } — broadcast to room
+//   "user_left"       { anonUsername, room } — broadcast to room
+//   "room_count"      { count: number }      — broadcast to room on join/leave
+//   "user_typing"     { anonUsername }        — broadcast to room (excl. sender)
+//   "user_stop_typing" { anonUsername }       — broadcast to room (excl. sender)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { Server }   = require("socket.io");
-const ChatMessage  = require("../models/ChatMessage");
+const { Server }  = require("socket.io");
+const ChatMessage = require("../models/ChatMessage");
 
 const { CHAT_ROOMS, CHAT_HISTORY_LIMIT } = require("../utils/constants");
 const { containsCrisisKeyword }          = require("../utils/crisisKeywords");
 
-// ── Module-level io instance (singleton) ─────────────────────────────────────
+// ── Module-level io singleton ─────────────────────────────────────────────────
 let io;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER: isValidRoom(room)
-// Checks if the room name is one of the allowed CHAT_ROOMS
-// ─────────────────────────────────────────────────────────────────────────────
+// ── HELPER: isValidRoom ───────────────────────────────────────────────────────
 const isValidRoom = (room) => CHAT_ROOMS.includes(room);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER: getRoomHistory(room)
-// Fetches the last CHAT_HISTORY_LIMIT messages for a room, oldest → newest
-// so the frontend can render them in chronological order
-// ─────────────────────────────────────────────────────────────────────────────
+// ── HELPER: getRoomHistory ────────────────────────────────────────────────────
 const getRoomHistory = async (room) => {
-  // Fetch newest N, then reverse so client renders top→bottom
   const messages = await ChatMessage.find({ room })
     .sort({ createdAt: -1 })
     .limit(CHAT_HISTORY_LIMIT)
     .select("anonUsername message crisisFlag createdAt");
-
   return messages.reverse();
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN: initSocket(httpServer)
-//
-// Called once from server.js after the HTTP server is created.
-// Sets up the Socket.io server and all event handlers.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── HELPER: emitRoomCount ─────────────────────────────────────────────────────
+// Sends the current member count for a room to everyone in that room.
+const emitRoomCount = (room) => {
+  const roomSockets = io.sockets.adapter.rooms.get(room);
+  const count = roomSockets ? roomSockets.size : 0;
+  io.to(room).emit("room_count", { count });
+};
+
+// ── MAIN: initSocket ──────────────────────────────────────────────────────────
 const initSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
@@ -71,76 +71,57 @@ const initSocket = (httpServer) => {
     },
   });
 
-  // ── Connection handler ────────────────────────────────────────────────────
   io.on("connection", (socket) => {
     console.log(`🔌 Socket connected: ${socket.id}`);
 
-    // ── EVENT: join_room ───────────────────────────────────────────────────
-    // Client sends { room, anonUsername } to join a peer support room.
-    // Server:
-    //   1. Validates room name against CHAT_ROOMS
-    //   2. Joins the socket to that Socket.io room
-    //   3. Sends back the last 50 messages (chat history)
-    //   4. Broadcasts "user_joined" to everyone else in the room
-    // ─────────────────────────────────────────────────────────────────────
+    // ── EVENT: join_room ──────────────────────────────────────────────────────
     socket.on("join_room", async ({ room, anonUsername }) => {
-      // Guard: validate room
       if (!isValidRoom(room)) {
         return socket.emit("room_error", {
           message: `"${room}" is not a valid room. Valid rooms: ${CHAT_ROOMS.join(", ")}`,
         });
       }
 
-      // Guard: anonUsername must be present
       if (!anonUsername || typeof anonUsername !== "string" || !anonUsername.trim()) {
         return socket.emit("room_error", {
           message: "anonUsername is required to join a room.",
         });
       }
 
-      // Join the Socket.io room
-      socket.join(room);
+      // Leave any previously joined room first (single-room-at-a-time model)
+      const prevRoom = socket.data.room;
+      if (prevRoom && prevRoom !== room) {
+        socket.leave(prevRoom);
+        socket.to(prevRoom).emit("user_left", { anonUsername: socket.data.anonUsername || "Someone", room: prevRoom });
+        emitRoomCount(prevRoom);
+      }
 
-      // Store on socket so we can use it in disconnect without the client resending
+      socket.join(room);
       socket.data.room         = room;
       socket.data.anonUsername = anonUsername.trim();
 
       console.log(`👤 ${anonUsername} joined room: ${room}`);
 
-      // Send chat history to the joining user only (not the whole room)
+      // Send chat history to the joining user only
       try {
         const history = await getRoomHistory(room);
         socket.emit("chat_history", history);
       } catch (err) {
         console.error(`[Socket] Failed to load history for room "${room}":`, err.message);
-        socket.emit("chat_history", []); // Send empty array — don't crash the join
+        socket.emit("chat_history", []);
       }
 
-      // Notify everyone else in the room
-      socket.to(room).emit("user_joined", {
-        anonUsername: anonUsername.trim(),
-        room,
-      });
+      // Notify others + broadcast updated count
+      socket.to(room).emit("user_joined", { anonUsername: anonUsername.trim(), room });
+      emitRoomCount(room);
     });
 
-    // ── EVENT: send_message ────────────────────────────────────────────────
-    // Client sends { room, anonUsername, message } when user types a message.
-    // Server:
-    //   1. Validates room + message
-    //   2. Scans message with containsCrisisKeyword()
-    //   3. Saves to MongoDB (with crisisFlag if keyword found)
-    //   4. Broadcasts "receive_message" to the whole room
-    //   5. If crisis keyword → also emits "crisis_alert" back to the sender only
-    // ─────────────────────────────────────────────────────────────────────
+    // ── EVENT: send_message ───────────────────────────────────────────────────
     socket.on("send_message", async ({ room, anonUsername, message }) => {
-      // Guard: validate room
       if (!isValidRoom(room)) {
-        return socket.emit("room_error", {
-          message: `"${room}" is not a valid room.`,
-        });
+        return socket.emit("room_error", { message: `"${room}" is not a valid room.` });
       }
 
-      // Guard: message must be a non-empty string within 1000 chars
       if (!message || typeof message !== "string" || !message.trim()) {
         return socket.emit("room_error", { message: "Message cannot be empty." });
       }
@@ -149,17 +130,15 @@ const initSocket = (httpServer) => {
         return socket.emit("room_error", { message: "Message cannot exceed 1000 characters." });
       }
 
-      const cleanMessage = message.trim();
+      const cleanMessage  = message.trim();
+      const cleanUsername = (anonUsername || socket.data.anonUsername || "Anonymous").trim();
+      const hasCrisis     = containsCrisisKeyword(cleanMessage);
 
-      // ── Crisis keyword scan ─────────────────────────────────────────────
-      const hasCrisis = containsCrisisKeyword(cleanMessage);
-
-      // ── Save to MongoDB ─────────────────────────────────────────────────
       let savedMessage;
       try {
         savedMessage = await ChatMessage.create({
           room,
-          anonUsername: anonUsername?.trim() || "Anonymous",
+          anonUsername: cleanUsername,
           message:      cleanMessage,
           crisisFlag:   hasCrisis,
         });
@@ -168,7 +147,7 @@ const initSocket = (httpServer) => {
         return socket.emit("room_error", { message: "Failed to send message. Please try again." });
       }
 
-      // ── Broadcast message to the whole room ─────────────────────────────
+      // Broadcast to entire room
       io.to(room).emit("receive_message", {
         anonUsername: savedMessage.anonUsername,
         room:         savedMessage.room,
@@ -177,48 +156,67 @@ const initSocket = (httpServer) => {
         createdAt:    savedMessage.createdAt,
       });
 
-      // ── If crisis keyword detected → alert only the sender ──────────────
+      // Crisis alert → sender only
       if (hasCrisis) {
-        console.warn(
-          `[Socket] ⚠️  Crisis keyword detected in room "${room}" from "${anonUsername}"`
-        );
-
+        console.warn(`[Socket] ⚠️  Crisis keyword detected in room "${room}" from "${cleanUsername}"`);
         socket.emit("crisis_alert", {
           message:
-            "We noticed your message may indicate distress. " +
-            "You are not alone. Please reach out for support:\n" +
+            "We noticed your message may indicate distress. You are not alone. Please reach out:\n" +
             "• iCall (India): 9152987821\n" +
             "• Vandrevala Foundation: 1860-2662-345 (24/7)\n" +
-            "• International Association for Suicide Prevention: https://www.iasp.info/resources/Crisis_Centres/",
+            "• AASRA: 91-22-27546669",
+          helplines: [
+            { name: "iCall",                  number: "9152987821",    desc: "Mon-Sat 8am-10pm" },
+            { name: "Vandrevala Foundation",  number: "1860-2662-345", desc: "24/7 helpline" },
+            { name: "AASRA",                  number: "91-22-27546669",desc: "24/7 crisis support" },
+          ],
         });
       }
     });
 
-    // ── EVENT: leave_room ──────────────────────────────────────────────────
-    // Client explicitly leaves a room (e.g. navigating away from Peer Support page).
-    // Server: removes socket from room, notifies others.
-    // ─────────────────────────────────────────────────────────────────────
+    // ── EVENT: leave_room ─────────────────────────────────────────────────────
     socket.on("leave_room", ({ room }) => {
       if (!isValidRoom(room)) return;
 
       const anonUsername = socket.data.anonUsername || "Someone";
-
       socket.leave(room);
-
       socket.to(room).emit("user_left", { anonUsername, room });
+      emitRoomCount(room);
+
+      // Clear room from socket data
+      if (socket.data.room === room) {
+        socket.data.room         = null;
+        socket.data.anonUsername = null;
+      }
 
       console.log(`👤 ${anonUsername} left room: ${room}`);
     });
 
-    // ── EVENT: disconnect ──────────────────────────────────────────────────
-    // Fires automatically when the browser tab closes / network drops.
-    // If the socket was in a room, notify that room.
-    // ─────────────────────────────────────────────────────────────────────
+    // ── EVENT: typing ─────────────────────────────────────────────────────────
+    socket.on("typing", ({ room }) => {
+      if (!room || !isValidRoom(room)) return;
+      const anonUsername = socket.data.anonUsername;
+      if (anonUsername) {
+        socket.to(room).emit("user_typing", { anonUsername });
+      }
+    });
+
+    // ── EVENT: stop_typing ────────────────────────────────────────────────────
+    socket.on("stop_typing", ({ room }) => {
+      if (!room || !isValidRoom(room)) return;
+      const anonUsername = socket.data.anonUsername;
+      if (anonUsername) {
+        socket.to(room).emit("user_stop_typing", { anonUsername });
+      }
+    });
+
+    // ── EVENT: disconnect ─────────────────────────────────────────────────────
     socket.on("disconnect", () => {
       const { room, anonUsername } = socket.data;
 
       if (room && anonUsername) {
         socket.to(room).emit("user_left", { anonUsername, room });
+        emitRoomCount(room);
         console.log(`🔌 ${anonUsername} disconnected from room: ${room}`);
       } else {
         console.log(`🔌 Socket disconnected: ${socket.id}`);
@@ -229,11 +227,7 @@ const initSocket = (httpServer) => {
   console.log("✅ Socket.io initialized");
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// getIO()
-// Returns the active Socket.io instance.
-// Used by other parts of the app (e.g. future admin alerts) to emit events.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── getIO ─────────────────────────────────────────────────────────────────────
 const getIO = () => {
   if (!io) throw new Error("[Socket] Socket.io not initialized. Call initSocket() first.");
   return io;

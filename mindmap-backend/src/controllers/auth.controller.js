@@ -93,9 +93,10 @@ const login = async (req, res, next) => {
       success: true,
       message: "Login successful",
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
+        _id:       user._id,
+        name:      user.name,
+        email:     user.email,
+        createdAt: user.createdAt,
       },
     });
   } catch (err) {

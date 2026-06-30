@@ -2,7 +2,7 @@
 // crisis.service.js
 //
 // Nightly crisis detection engine for MindMap.
-// Called by the cron job in server.js every day at 8 PM IST.
+// Called by the cron job in server.js every day at 11 PM IST.
 //
 // TWO independent triggers flag a user as "at risk":
 //
@@ -121,7 +121,7 @@ const buildCrisisReasons = ({ streak, sadness, keyword }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN: runCrisisCheck()
 //
-// Entry point — called by cron job in server.js every day at 8 PM IST.
+// Entry point — called by cron job in server.js every day at 11 PM IST.
 //
 // Flow:
 //   1. Fetch all users who have a trustedContact.phone set

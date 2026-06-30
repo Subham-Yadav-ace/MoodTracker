@@ -85,8 +85,8 @@ const CRISIS_SADNESS_CONFIDENCE = 0.85; // 85%
 
 // ── Cron Schedules (node-cron syntax) ────────────────────────────────────────
 // Used in: server.js
-// "0 20 * * *"  → every day at 8:00 PM IST (20:00)
-const CRON_CRISIS_CHECK = "0 20 * * *";
+// "0 23 * * *"  → every day at 11:00 PM IST (23:00)
+const CRON_CRISIS_CHECK = "0 23 * * *";
 
 // "0 9 * * 0"   → every Sunday at 9:00 AM IST
 const CRON_WEEKLY_EMAIL = "0 9 * * 0";

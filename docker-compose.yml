@@ -6,24 +6,25 @@ version: "3.9"
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
-  # ── MongoDB ────────────────────────────────────────────────────────────────
-  mongo:
-    image: mongo:7.0
-    container_name: mindmap-mongo
-    restart: unless-stopped
-    volumes:
-      - mongo_data:/data/db
-    environment:
-      MONGO_INITDB_DATABASE: mindmap
-    # Expose only within Docker network; not on host by default
-    expose:
-      - "27017"
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+  # ── MongoDB (LOCAL ONLY) ───────────────────────────────────────────────────
+  # This service is NOT used in production — MongoDB Atlas is used instead.
+  # Uncomment below only for local development without Atlas.
+  # mongo:
+  #   image: mongo:7.0
+  #   container_name: mindmap-mongo
+  #   restart: unless-stopped
+  #   volumes:
+  #     - mongo_data:/data/db
+  #   environment:
+  #     MONGO_INITDB_DATABASE: mindmap
+  #   expose:
+  #     - "27017"
+  #   healthcheck:
+  #     test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 10s
 
   # ── Backend (Node / Express / Socket.io) ──────────────────────────────────
   backend:
@@ -35,15 +36,13 @@ services:
     env_file:
       - ./mindmap-backend/.env           # local only; use AWS Secrets Manager in prod
     environment:
-      # Override MONGODB_URI so it points to the Docker service, not localhost
-      MONGODB_URI: mongodb://mongo:27017/mindmap
+      # MONGODB_URI comes from ./mindmap-backend/.env (MongoDB Atlas)
+      # Do NOT override it here — the .env value will be used
       PORT: 5000
       NODE_ENV: production
     ports:
       - "5000:5000"
-    depends_on:
-      mongo:
-        condition: service_healthy
+    # No depends_on needed — Atlas is an external cloud service
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5000/api/health"]
       interval: 30s
@@ -68,6 +67,6 @@ services:
       backend:
         condition: service_healthy
 
-volumes:
-  mongo_data:
-    driver: local
+# volumes:
+#   mongo_data:      # Only needed if using local mongo container
+#     driver: local

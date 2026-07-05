@@ -1,62 +1,70 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// twilio.service.js  (uses Fast2SMS — Indian SMS API)
+// twilio.service.js  (uses Twilio SDK)
 //
-// Sends a crisis alert SMS via Fast2SMS REST API.
-// Works for any Indian mobile number. No DLT registration needed for dev.
-// ₹50 free credits on signup (~250 SMS).
+// Sends a crisis alert SMS via Twilio.
+// Works for any number worldwide, including Indian (+91) numbers.
 //
 // SETUP (one time):
-//   1. Sign up at https://www.fast2sms.com
-//   2. Dashboard → Dev API → copy your API Key
-//   3. Add to .env:
-//        FAST2SMS_API_KEY=your_api_key_here
+//   1. Sign up at https://www.twilio.com/try-twilio (free trial gives ~$15)
+//   2. Console → Account Info → copy Account SID & Auth Token
+//   3. Get a Twilio phone number (free trial number works)
+//   4. Add to .env:
+//        TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+//        TWILIO_AUTH_TOKEN=your_auth_token_here
+//        TWILIO_FROM_NUMBER=+1xxxxxxxxxx   ← your Twilio number
 //
-// API docs: https://docs.fast2sms.com
-//
-// NOTE: Works only for Indian numbers (+91xxxxxxxxxx).
-//       For international numbers, switch to a global provider.
+// NOTE (free trial):
+//   On a free trial account, you can only send SMS to numbers you have
+//   verified in the Twilio console (Console → Verified Caller IDs).
+//   Upgrade to a paid account to send to any number.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const axios = require("axios");
-
-const FAST2SMS_URL = "https://www.fast2sms.com/dev/bulkV2";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: getConfig()
-// Validates the required env var.
+// Validates all required env vars and returns an initialised Twilio client.
 // ─────────────────────────────────────────────────────────────────────────────
 const getConfig = () => {
-  const apiKey = process.env.FAST2SMS_API_KEY;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_FROM_NUMBER;
 
-  if (!apiKey) {
-    throw new Error("[Fast2SMS] Missing FAST2SMS_API_KEY in environment.");
+  if (!accountSid || !authToken || !fromNumber) {
+    throw new Error(
+      "[Twilio] Missing env vars. Ensure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER are set in .env"
+    );
   }
 
-  return { apiKey };
+  const twilio = require("twilio");
+  const client = twilio(accountSid, authToken);
+
+  return { client, fromNumber };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPER: sanitizePhone(phone)
+// HELPER: normalizePhone(phone)
 //
-// Fast2SMS expects the number WITHOUT the country code prefix.
-// Strips +91 or 91 from the start if present.
+// Ensures the number is in E.164 format (+countrycode + number).
+// Twilio requires E.164 format for the `to` field.
 //
 // Examples:
-//   "+919876543210" → "9876543210"
-//   "919876543210"  → "9876543210"
-//   "9876543210"    → "9876543210"  (already clean)
+//   "9876543210"    → "+919876543210"  (assumes India if 10 digits)
+//   "+919876543210" → "+919876543210"  (already correct)
+//   "919876543210"  → "+919876543210"  (adds leading +)
 // ─────────────────────────────────────────────────────────────────────────────
-const sanitizePhone = (phone) => {
-  const cleaned = phone.replace(/\s+/g, "");          // remove spaces
-  if (cleaned.startsWith("+91")) return cleaned.slice(3);
-  if (cleaned.startsWith("91") && cleaned.length === 12) return cleaned.slice(2);
-  return cleaned;
+const normalizePhone = (phone) => {
+  const cleaned = phone.replace(/\s+/g, ""); // strip spaces
+
+  if (cleaned.startsWith("+")) return cleaned;          // already E.164
+  if (cleaned.startsWith("91") && cleaned.length === 12) return `+${cleaned}`; // 91XXXXXXXXXX
+  if (cleaned.length === 10) return `+91${cleaned}`;   // bare 10-digit → assume India
+  return `+${cleaned}`;                                  // best-effort fallback
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: buildSMSBody({ toName, userName, reason })
 //
-// Builds the SMS text. Fast2SMS has a 160 char limit per segment.
+// Builds the SMS text sent to the trusted contact.
+// Keep it under 160 chars to avoid multi-segment billing.
 // ─────────────────────────────────────────────────────────────────────────────
 const buildSMSBody = ({ toName, userName, reason }) => {
   return (
@@ -70,76 +78,65 @@ const buildSMSBody = ({ toName, userName, reason }) => {
 //
 // Called by crisis.service.js when a user is flagged.
 //
-// Fast2SMS API call:
-//   POST https://www.fast2sms.com/dev/bulkV2
-//   Headers: authorization: <api_key>
-//   Body (form):
-//     route=q               → "Quick Transactional" route (no template needed)
-//     message=<text>        → your SMS body
-//     numbers=9876543210    → recipient (10-digit, no country code)
+// Twilio SDK call:
+//   client.messages.create({
+//     body: <text>,
+//     from: <your Twilio number>,
+//     to:   <recipient in E.164>,
+//   })
 //
-// @param  {string}  toPhone   — trusted contact's number ("+919876543210" or "9876543210")
+// @param  {string}  toPhone   — trusted contact's number (any format)
 // @param  {string}  toName    — trusted contact's name
 // @param  {string}  userName  — the at-risk user's name
 // @param  {string}  reason    — human-readable crisis reason
 //
-// @returns {Promise<{ success: boolean, message: string }>}
-// @throws  {Error}  if config missing or API call fails
+// @returns {Promise<{ success: boolean, sid: string }>}
+// @throws  {Error}  if config missing or Twilio API call fails
 // ─────────────────────────────────────────────────────────────────────────────
 const sendCrisisSMS = async ({ toPhone, toName, userName, reason }) => {
-  // ── Guard: all fields required ────────────────────────────────────────────
+  // ── Guard: all fields required ──────────────────────────────────────────
   if (!toPhone || !toName || !userName || !reason) {
     throw new Error(
-      `[Fast2SMS] Missing required fields. Got: toPhone=${toPhone}, toName=${toName}, userName=${userName}`
+      `[Twilio] Missing required fields. Got: toPhone=${toPhone}, toName=${toName}, userName=${userName}`
     );
   }
 
-  const { apiKey } = getConfig();
-  const message    = buildSMSBody({ toName, userName, reason });
-  const numbers    = sanitizePhone(toPhone); // Fast2SMS needs 10-digit number
+  const { client, fromNumber } = getConfig();
+  const body = buildSMSBody({ toName, userName, reason });
+  const to   = normalizePhone(toPhone);
 
   try {
-    const response = await axios.post(
-      FAST2SMS_URL,
-      {
-        route:   "q",       // Quick route — no pre-approved template needed
-        message,
-        numbers,            // 10-digit Indian mobile number
-        flash:   0,         // 0 = regular SMS, 1 = flash SMS (pops up on screen)
-      },
-      {
-        headers: {
-          authorization: apiKey,
-          "Content-Type": "application/json",
-        },
-        timeout: 15000, // 15s
-      }
+    const message = await client.messages.create({
+      body,
+      from: fromNumber,
+      to,
+    });
+
+    console.log(
+      `[Twilio] ✅ SMS sent to ${toName} (${to}) — SID: ${message.sid} | Status: ${message.status}`
     );
 
-    if (response.data?.return === true) {
-      console.log(
-        `[Fast2SMS] ✅ SMS sent to ${toName} (${numbers}) — Request ID: ${response.data?.request_id}`
-      );
-      return { success: true, message: response.data?.message?.[0] || "Sent" };
-    } else {
-      throw new Error(response.data?.message || "Fast2SMS returned failure");
-    }
+    return { success: true, sid: message.sid };
 
   } catch (err) {
-    const status  = err.response?.status;
-    const errData = err.response?.data;
+    const code = err.code; // Twilio error codes: https://www.twilio.com/docs/api/errors
 
-    if (status === 401) {
-      console.error("[Fast2SMS] ❌ Invalid API key. Check FAST2SMS_API_KEY in .env");
-    } else if (status === 400) {
-      console.error("[Fast2SMS] ❌ Bad request:", errData);
-    } else if (err.code === "ECONNABORTED") {
-      console.error("[Fast2SMS] ❌ Request timed out.");
+    if (code === 20003) {
+      console.error("[Twilio] ❌ Authentication failed. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.");
+    } else if (code === 21211) {
+      console.error(`[Twilio] ❌ Invalid 'to' phone number: ${to}`);
+    } else if (code === 21608) {
+      console.error(
+        `[Twilio] ❌ Number ${to} is not verified. On a free trial account, ` +
+        "verify the number at: https://console.twilio.com/us1/develop/phone-numbers/manage/verified"
+      );
+    } else if (code === 21614) {
+      console.error("[Twilio] ❌ 'To' number is not a mobile number capable of receiving SMS.");
     } else {
-      console.error(`[Fast2SMS] ❌ Failed: ${err.message}`);
+      console.error(`[Twilio] ❌ Failed (code ${code}): ${err.message}`);
     }
 
-    throw err; // Re-throw → crisis.service.js logs and continues to next user
+    throw err; // Re-throw → crisis.service.js catches and continues to next user
   }
 };
 

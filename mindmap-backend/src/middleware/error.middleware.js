@@ -1,3 +1,5 @@
+const logger = require("../utils/logger");
+
 const errorHandler = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || "Internal Server Error";
@@ -23,10 +25,13 @@ const errorHandler = (err, req, res, next) => {
     message = `Invalid ${err.path}: ${err.value}`;
   }
 
-  // Log in development only
-  if (process.env.NODE_ENV === "development") {
-    console.error(`[ERROR] ${statusCode} — ${message}`);
-  }
+  // Log all errors (structured JSON in production → searchable in CloudWatch)
+  logger.error(message, {
+    statusCode,
+    method: req.method,
+    url: req.originalUrl,
+    stack: err.stack,
+  });
 
   res.status(statusCode).json({
     success: false,
@@ -35,3 +40,4 @@ const errorHandler = (err, req, res, next) => {
 };
 
 module.exports = { errorHandler };
+

@@ -7,6 +7,8 @@ const helmet     = require("helmet");
 const morgan     = require("morgan");
 const cron       = require("node-cron");
 
+const logger     = require("./src/utils/logger");
+
 const connectDB  = require("./src/config/db");
 const { initSocket }  = require("./src/config/socket");
 const { errorHandler } = require("./src/middleware/error.middleware");
@@ -20,7 +22,7 @@ const app = express();
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(helmet());
-app.use(morgan("dev"));
+app.use(morgan("combined", { stream: logger.morganStream }));
 app.use(cors({
   origin: process.env.CLIENT_URL,
   credentials: true,           // Allow cookies
@@ -50,18 +52,18 @@ const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
   httpServer.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    logger.info(`🚀 Server running on http://localhost:${PORT}`);
   });
 
   // ── Cron: Nightly crisis check — every day at 8 PM IST ──────
   cron.schedule(CRON_CRISIS_CHECK, () => {
-    console.log("[Cron] Running nightly crisis check...");
+    logger.info("[Cron] Running nightly crisis check...");
     runCrisisCheck();
   });
 
   // ── Cron: Weekly email report — every Sunday at 9 AM IST ────
   cron.schedule(CRON_WEEKLY_EMAIL, () => {
-    console.log("[Cron] Running weekly email report...");
+    logger.info("[Cron] Running weekly email report...");
     sendWeeklyReports();
   });
 });

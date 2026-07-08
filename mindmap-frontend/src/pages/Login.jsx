@@ -55,29 +55,30 @@ const Login = () => {
           style={{ background: "radial-gradient(circle, #d946ef, transparent)" }}
         />
 
-        <div className="relative z-10 max-w-md text-center animate-fade-in">
+        <div className="relative z-10 max-w-2xl text-center animate-fade-in px-8">
           {/* Logo */}
           <div className="flex items-center justify-center gap-4 mb-12">
             <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center gradient-bg animate-pulse-glow"
+              className="w-20 h-20 lg:w-24 lg:h-24 rounded-3xl flex items-center justify-center gradient-bg animate-pulse-glow"
             >
-              <Brain size={32} color="white" strokeWidth={2} />
+              <Brain className="w-10 h-10 lg:w-12 lg:h-12" color="white" strokeWidth={2} />
             </div>
           </div>
 
           <h2
-            className="text-5xl font-bold mb-6 leading-tight"
+            className="text-5xl lg:text-6xl xl:text-7xl font-bold mb-6 leading-tight"
             style={{ color: "var(--text-primary)" }}
           >
             Understand your{" "}
+            <br className="hidden lg:block" />
             <span className="gradient-text">mental patterns</span>
           </h2>
-          <p className="text-lg mb-12" style={{ color: "var(--text-secondary)" }}>
+          <p className="text-lg lg:text-xl xl:text-2xl mb-12 max-w-xl mx-auto" style={{ color: "var(--text-secondary)" }}>
             MindMap uses AI-powered sentiment analysis to detect how you truly feel — beyond the numbers.
           </p>
 
           {/* Feature pills */}
-          <div className="flex flex-wrap gap-3 justify-center">
+          <div className="flex flex-wrap gap-4 justify-center">
             {[
               "🧠 Divergence Detection",
               "📊 Mood Analytics",
@@ -86,7 +87,7 @@ const Login = () => {
             ].map((f) => (
               <span
                 key={f}
-                className="px-4 py-2 rounded-full text-sm font-medium glass"
+                className="px-5 py-2.5 rounded-full text-sm lg:text-base font-medium glass"
                 style={{ color: "var(--text-secondary)" }}
               >
                 {f}
@@ -98,7 +99,7 @@ const Login = () => {
 
       {/* Right panel — form */}
       <div
-        className="flex flex-col justify-center w-full lg:max-w-md p-8 lg:p-12"
+        className="flex flex-col justify-center w-full lg:w-[500px] xl:w-[600px] shrink-0 p-8 lg:p-16 xl:p-20"
         style={{ background: "var(--bg-secondary)", borderLeft: "1px solid var(--border)" }}
       >
         <div className="animate-fade-in">

@@ -63,33 +63,34 @@ const Register = () => {
           style={{ background: "radial-gradient(circle, #6366f1, transparent)" }}
         />
 
-        <div className="relative z-10 max-w-md text-center animate-fade-in">
+        <div className="relative z-10 max-w-2xl text-center animate-fade-in px-8">
           <div className="flex items-center justify-center mb-10">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center gradient-bg animate-pulse-glow">
-              <Brain size={32} color="white" strokeWidth={2} />
+            <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-3xl flex items-center justify-center gradient-bg animate-pulse-glow">
+              <Brain className="w-10 h-10 lg:w-12 lg:h-12" color="white" strokeWidth={2} />
             </div>
           </div>
 
-          <h2 className="text-4xl font-bold mb-6 leading-tight" style={{ color: "var(--text-primary)" }}>
+          <h2 className="text-4xl lg:text-5xl xl:text-6xl font-bold mb-6 leading-tight" style={{ color: "var(--text-primary)" }}>
             Start your{" "}
+            <br className="hidden lg:block" />
             <span className="gradient-text">wellness journey</span>{" "}
             today
           </h2>
-          <p className="mb-10 text-lg" style={{ color: "var(--text-secondary)" }}>
+          <p className="mb-10 text-lg lg:text-xl xl:text-2xl max-w-xl mx-auto" style={{ color: "var(--text-secondary)" }}>
             Join thousands tracking their mental health with AI-powered insights.
           </p>
 
           {/* Benefits */}
-          <div className="space-y-4 text-left">
+          <div className="space-y-6 text-left max-w-md mx-auto">
             {[
               { icon: "🧠", text: "AI detects what your words truly reveal" },
               { icon: "📊", text: "Visualize mood patterns over time" },
               { icon: "💬", text: "Anonymous peer support rooms" },
               { icon: "🔔", text: "Crisis alerts to your trusted contact" },
             ].map(({ icon, text }) => (
-              <div key={text} className="flex items-center gap-3">
-                <span className="text-2xl">{icon}</span>
-                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{text}</p>
+              <div key={text} className="flex items-center gap-4">
+                <span className="text-3xl lg:text-4xl">{icon}</span>
+                <p className="text-base lg:text-lg" style={{ color: "var(--text-secondary)" }}>{text}</p>
               </div>
             ))}
           </div>
@@ -98,7 +99,7 @@ const Register = () => {
 
       {/* Right — form */}
       <div
-        className="flex flex-col justify-center w-full lg:max-w-md p-8 lg:p-12 overflow-y-auto"
+        className="flex flex-col justify-center w-full lg:w-[500px] xl:w-[600px] shrink-0 p-8 lg:p-16 xl:p-20 overflow-y-auto"
         style={{ background: "var(--bg-secondary)", borderLeft: "1px solid var(--border)" }}
       >
         <div className="animate-fade-in">

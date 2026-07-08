@@ -49,6 +49,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    # ── CloudWatch Logging ────────────────────────────────────────────────────
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-region: "ap-south-1"          # Change to your EC2 region
+        awslogs-group: "mindmap-logs"
+        awslogs-stream: "backend"
+        awslogs-create-group: "true"          # Auto-creates log group if missing
 
   # ── Frontend (React → Nginx) ───────────────────────────────────────────────
   frontend:
@@ -66,6 +74,14 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # ── CloudWatch Logging ────────────────────────────────────────────────────
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-region: "ap-south-1"          # Change to your EC2 region
+        awslogs-group: "mindmap-logs"
+        awslogs-stream: "frontend"
+        awslogs-create-group: "true"          # Auto-creates log group if missing
 
 # volumes:
 #   mongo_data:      # Only needed if using local mongo container

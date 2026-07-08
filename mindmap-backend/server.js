@@ -19,6 +19,7 @@ const { sendWeeklyReports } = require("./src/services/email.service");
 
 // ── Initialize Express ──────────────────────────────────────
 const app = express();
+app.set("trust proxy", 1);   // Trust Nginx reverse proxy (fixes X-Forwarded-For warning)
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(helmet());

@@ -4,7 +4,7 @@ const { createServer } = require("http");
 const cors       = require("cors");
 const cookieParser = require("cookie-parser");
 const helmet     = require("helmet");
-const morgan     = require("morgan");
+
 const cron       = require("node-cron");
 
 const logger     = require("./src/utils/logger");
@@ -23,7 +23,25 @@ app.set("trust proxy", 1);   // Trust Nginx reverse proxy (fixes X-Forwarded-For
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(helmet());
-app.use(morgan("combined", { stream: logger.morganStream }));
+
+// ── Structured HTTP Request Logger ──────────────────────────
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const level = res.statusCode >= 500 ? "error"
+                : res.statusCode >= 400 ? "warn"
+                : "http";
+    logger[level]({
+      message:      "HTTP Request",
+      method:       req.method,
+      url:          req.originalUrl,
+      statusCode:   res.statusCode,
+      responseTime: `${Date.now() - start}ms`,
+      ip:           req.ip,
+    });
+  });
+  next();
+});
 app.use(cors({
   origin: process.env.CLIENT_URL,
   credentials: true,           // Allow cookies

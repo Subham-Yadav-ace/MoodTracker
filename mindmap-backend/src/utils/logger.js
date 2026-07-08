@@ -30,9 +30,4 @@ const logger = createLogger({
   ],
 });
 
-// ── Morgan stream — pipes HTTP logs into Winston ─────────────────────────────
-logger.morganStream = {
-  write: (message) => logger.http(message.trim()),
-};
-
 module.exports = logger;

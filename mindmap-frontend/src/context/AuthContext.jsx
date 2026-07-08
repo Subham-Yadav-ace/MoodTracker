@@ -10,6 +10,12 @@ export const AuthProvider = ({ children }) => {
 
   // ─── Check auth on mount ─────────────────────────────────────
   const checkAuth = useCallback(async () => {
+    if (!localStorage.getItem("isAuthenticated")) {
+      setLoading(false);
+      setIsAuthenticated(false);
+      return;
+    }
+
     try {
       const { data } = await api.get("/user/profile");
       setUser(data.user);
@@ -17,6 +23,7 @@ export const AuthProvider = ({ children }) => {
     } catch {
       setUser(null);
       setIsAuthenticated(false);
+      localStorage.removeItem("isAuthenticated");
     } finally {
       setLoading(false);
     }
@@ -28,6 +35,7 @@ export const AuthProvider = ({ children }) => {
     const handleSessionExpired = () => {
       setUser(null);
       setIsAuthenticated(false);
+      localStorage.removeItem("isAuthenticated");
     };
 
     window.addEventListener("session-expired", handleSessionExpired);
@@ -39,6 +47,7 @@ export const AuthProvider = ({ children }) => {
     const { data } = await api.post("/auth/login", { email, password });
     setUser(data.user);
     setIsAuthenticated(true);
+    localStorage.setItem("isAuthenticated", "true");
     return data;
   };
 
@@ -47,6 +56,7 @@ export const AuthProvider = ({ children }) => {
     const { data } = await api.post("/auth/register", { name, email, password });
     setUser(data.user);
     setIsAuthenticated(true);
+    localStorage.setItem("isAuthenticated", "true");
     return data;
   };
 
@@ -59,6 +69,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null);
       setIsAuthenticated(false);
+      localStorage.removeItem("isAuthenticated");
     }
   };
 

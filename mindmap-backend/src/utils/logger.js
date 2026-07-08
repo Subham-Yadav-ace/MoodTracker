@@ -21,7 +21,7 @@ const prodFormat = combine(
 );
 
 const logger = createLogger({
-  level: process.env.LOG_LEVEL || "info",
+  level: process.env.LOG_LEVEL || "http",   // "http" captures error/warn/info/http levels
   format: process.env.NODE_ENV === "production" ? prodFormat : devFormat,
   transports: [
     new transports.Console({

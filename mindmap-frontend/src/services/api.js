@@ -59,14 +59,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        // Only redirect to /login if NOT already on a public page.
-        // Redirecting while already on /login causes an infinite reload loop
-        // because AuthContext.checkAuth() runs on every mount.
-        const publicPaths = ["/login", "/register"];
-        const isPublic    = publicPaths.some((p) => window.location.pathname.startsWith(p));
-        if (!isPublic) {
-          window.location.href = "/login";
-        }
+        window.dispatchEvent(new Event("session-expired"));
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
